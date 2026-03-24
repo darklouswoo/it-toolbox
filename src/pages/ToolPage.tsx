@@ -109,6 +109,21 @@ const toolComponents: Record<string, React.LazyExoticComponent<() => JSX.Element
   'html-preview': lazy(() => import('@/tools/html-preview/index')),
   // Phase 3.9 - SEO工具
   'meta-tag-gen': lazy(() => import('@/tools/meta-tag-gen/index')),
+  // Phase 3.10 - 数据生成&测试
+  'hash-verify': lazy(() => import('@/tools/hash-verify/index')),
+  'jwt-verifier': lazy(() => import('@/tools/jwt-verifier/index')),
+  'password-strength': lazy(() => import('@/tools/password-strength/index')),
+  'json-gen': lazy(() => import('@/tools/json-gen/index')),
+  // Phase 3.11 - 单位换算扩展
+  'number-unit': lazy(() => import('@/tools/number-unit/index')),
+  'data-storage': lazy(() => import('@/tools/data-storage/index')),
+  // Phase 3.12 - 数据生成&测试扩展
+  'sql-gen': lazy(() => import('@/tools/sql-gen/index')),
+  'regex-gen': lazy(() => import('@/tools/regex-gen/index')),
+  // Phase 3.13 - 设计工具扩展
+  'color-space': lazy(() => import('@/tools/color-space/index')),
+  // Phase 3.14 - 时间工具扩展
+  'epoch-formats': lazy(() => import('@/tools/epoch-formats/index')),
 }
 
 function ToolSkeleton() {
