@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Copy, Check, RefreshCw } from 'lucide-react'
 import chroma from 'chroma-js'
 import { ToolLayout } from '@/components/tool/ToolLayout'
@@ -18,6 +18,8 @@ interface ColorFormats {
   lab: string
   oklch: string
   css: string
+  luminance: number
+  perceivedLightness: number
 }
 
 function computeFormats(hex: string, alpha: number): ColorFormats | null {
@@ -28,7 +30,6 @@ function computeFormats(hex: string, alpha: number): ColorFormats | null {
     const [hv, sv, v] = c.hsv()
     const [L, a_, b_] = c.lab()
     const [lc, cc, hc] = c.oklch()
-    // CMYK
     const r1 = r / 255, g1 = g / 255, b1 = b / 255
     const k = 1 - Math.max(r1, g1, b1)
     const cm = k === 1 ? 0 : (1 - r1 - k) / (1 - k)
@@ -47,6 +48,8 @@ function computeFormats(hex: string, alpha: number): ColorFormats | null {
       lab: `lab(${L.toFixed(1)}, ${a_.toFixed(1)}, ${b_.toFixed(1)})`,
       oklch: `oklch(${(lc ?? 0).toFixed(3)}, ${(cc ?? 0).toFixed(3)}, ${Math.round(hc ?? 0)}°)`,
       css: c.css(),
+      luminance: c.luminance(),
+      perceivedLightness: L,
     }
   } catch {
     return null
@@ -66,6 +69,9 @@ const FORMAT_GROUPS = [
   { key: 'oklch',   label: 'OKLch' },
 ]
 
+const DEFAULT_COLOR = '#6ee7b7'
+const DEFAULT_FORMATS = computeFormats(DEFAULT_COLOR, 1)!
+
 function isValidHexLength(hex: string): boolean {
   if (hex.startsWith('#')) {
     const len = hex.length
@@ -75,9 +81,9 @@ function isValidHexLength(hex: string): boolean {
 }
 
 export default function ColorPicker() {
-  const [hex, setHex] = useState('#6ee7b7')
+  const [hex, setHex] = useState(DEFAULT_COLOR)
   const [alpha, setAlpha] = useState(1)
-  const [formats, setFormats] = useState<ColorFormats | null>(null)
+  const [formats, setFormats] = useState<ColorFormats>(DEFAULT_FORMATS)
   const [inputError, setInputError] = useState(false)
   const { addRecentTool } = useAppStore()
   const { copy } = useClipboard()
@@ -91,7 +97,10 @@ export default function ColorPicker() {
     try {
       chroma(hex)
       setInputError(false)
-      setFormats(computeFormats(hex, alpha))
+      const newFormats = computeFormats(hex, alpha)
+      if (newFormats) {
+        setFormats(newFormats)
+      }
     } catch {
       setInputError(true)
     }
@@ -114,26 +123,26 @@ export default function ColorPicker() {
     addRecentTool(meta.id)
   }
 
-  const outputValue = formats
-    ? Object.entries(formats).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join('\n')
-    : ''
+  const outputValue = useMemo(() => 
+    Object.entries(formats).filter(([k]) => k !== 'luminance' && k !== 'perceivedLightness').map(([k, v]) => `${k.toUpperCase()}: ${v}`).join('\n'),
+    [formats]
+  )
+
+  const safeColorForInput = hex.length >= 7 ? hex.slice(0, 7) : DEFAULT_COLOR
 
   return (
-    <ToolLayout meta={meta} onReset={() => { setHex('#6ee7b7'); setAlpha(1) }} outputValue={outputValue}>
+    <ToolLayout meta={meta} onReset={() => { setHex(DEFAULT_COLOR); setAlpha(1); setFormats(DEFAULT_FORMATS) }} outputValue={outputValue}>
       <div className="flex items-start gap-6">
-        {/* Left: color inputs */}
         <div className="w-64 shrink-0 flex flex-col gap-4">
-          {/* Preview */}
           <div
             className="w-full h-32 rounded-xl border border-border-base shadow-inner transition-colors"
-            style={{ backgroundColor: formats?.rgba ?? hex }}
+            style={{ backgroundColor: formats.rgba }}
           />
 
-          {/* Picker + hex input */}
           <div>
             <label className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2 block">颜色</label>
             <div className="flex items-center gap-2">
-              <input type="color" value={hex.slice(0, 7)} onChange={e => { setHex(e.target.value); addRecentTool(meta.id) }}
+              <input type="color" value={safeColorForInput} onChange={e => { setHex(e.target.value); addRecentTool(meta.id) }}
                 className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent" />
               <input
                 type="text"
@@ -149,26 +158,21 @@ export default function ColorPicker() {
             </div>
           </div>
 
-          {/* Alpha slider */}
           <div>
             <label className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2 block">透明度: {Math.round(alpha * 100)}%</label>
             <input type="range" min={0} max={1} step={0.01} value={alpha} onChange={e => setAlpha(+e.target.value)}
               className="w-full accent-[var(--color-accent)]" />
           </div>
 
-          {/* Luminance info */}
-          {formats && (
-            <div className="text-xs text-text-muted space-y-1">
-              <div>相对亮度: <span className="font-mono text-text-primary">{(chroma(hex).luminance() * 100).toFixed(1)}%</span></div>
-              <div>感知亮度: <span className="font-mono text-text-primary">{chroma(hex).lab()[0].toFixed(1)}</span></div>
-            </div>
-          )}
+          <div className="text-xs text-text-muted space-y-1">
+            <div>相对亮度: <span className="font-mono text-text-primary">{(formats.luminance * 100).toFixed(1)}%</span></div>
+            <div>感知亮度: <span className="font-mono text-text-primary">{formats.perceivedLightness.toFixed(1)}</span></div>
+          </div>
         </div>
 
-        {/* Right: all formats */}
         <div className="flex-1 flex flex-col gap-2">
-          {formats && FORMAT_GROUPS.map(({ key, label }) => {
-            const value = formats[key as keyof ColorFormats]
+          {FORMAT_GROUPS.map(({ key, label }) => {
+            const value = formats[key as keyof ColorFormats] as string
             return (
               <div key={key}
                 className="flex items-center justify-between p-3 rounded-lg bg-bg-surface border border-border-base hover:border-border-strong transition-colors group">
