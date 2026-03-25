@@ -66,6 +66,14 @@ const FORMAT_GROUPS = [
   { key: 'oklch',   label: 'OKLch' },
 ]
 
+function isValidHexLength(hex: string): boolean {
+  if (hex.startsWith('#')) {
+    const len = hex.length
+    return len === 4 || len === 7 || len === 9
+  }
+  return hex.length >= 3
+}
+
 export default function ColorPicker() {
   const [hex, setHex] = useState('#6ee7b7')
   const [alpha, setAlpha] = useState(1)
@@ -76,16 +84,16 @@ export default function ColorPicker() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!isValidHexLength(hex)) {
+      setInputError(false)
+      return
+    }
     try {
       chroma(hex)
       setInputError(false)
       setFormats(computeFormats(hex, alpha))
     } catch {
-      if (hex.length >= 7 || (hex.length >= 4 && !hex.startsWith('#'))) {
-        setInputError(true)
-      } else {
-        setInputError(false)
-      }
+      setInputError(true)
     }
   }, [hex, alpha])
 
